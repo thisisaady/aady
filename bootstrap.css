@@ -43,6 +43,17 @@ audio:not([controls]) {
 template {
   display: none;
 }
+html {
+  font-family: sans-serif;
+  -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+}
+span{
+  border:2px;
+}
 a {
   background-color: transparent;
 }
@@ -71,19 +82,7 @@ mark {
 small {
   font-size: 80%;
 }
-sub,
-sup {
-  position: relative;
-  font-size: 75%;
-  line-height: 0;
-  vertical-align: baseline;
-}
-sup {
-  top: -.5em;
-}
-sub {
-  bottom: -.25em;
-}
+
 img {
   border: 0;
 }
