@@ -12,8 +12,10 @@ html {
 body {
   margin: 0;
 }
+span{
+  border:2px;
+}
 article,
-aside,
 details,
 figcaption,
 figure,
@@ -1360,6 +1362,9 @@ a.text-info:focus {
 }
 .text-warning {
   color: #8a6d3b;
+}
+span{
+  border:2px;
 }
 a.text-warning:hover,
 a.text-warning:focus {
