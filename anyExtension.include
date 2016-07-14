@@ -1,0 +1,1919 @@
+<?php
+class Appointments {
+	/**
+	 * Creates appointments for customer.
+	**/
+	public function create_appointment($data_array=array(), $action='create') {
+
+		# first check appointment code is existing or not.
+		$appt_details =	$db_fv_pair	= $errors = $appts_array = array();
+		$new_appointment			=	TRUE;
+		$status_code				=	200;
+		$appt_id					=	0;
+
+		if(isset($data_array['aid']) && $data_array['aid'] != '') {
+			$appt_code				=		Utilities::clean_string($data_array['aid']);
+			$appt_details 			=		$this->get_appointment_details($appt_code);
+			if(count($appt_details)>0) {
+				$new_appointment	=		FALSE;
+				$appt_id			=		$appt_details['appt_id'];
+			}	
+		} else {
+			$appt_code				=		'';
+		}
+
+		# check valid user or not.
+		$uuid						=		Utilities::clean_string($data_array['uid']);
+		if($uuid == '') {
+			return array($status_code => array('status' => 'failed','errorcode'=>'800','errortext'=>'User id requried.'));
+		}
+		$uid 						=		Utilities::get_user_data($uuid,2);
+
+		if($uid<=0) {
+			return array($status_code => array('status' => 'failed','errorcode'=>'700','errortext'=>'There seems to be an issue with your account. Please try logging in again or contact BE for support.'));
+		} else {
+
+			if(isset($data_array['event_type'])) {
+				$event_type			=		Utilities::clean_string($data_array['event_type']);
+			} else {
+				$event_type			=		'';
+			}
+
+			if(isset($data_array['date'])) {
+				$appt_date				=		Utilities::clean_string($data_array['date']);
+			} else {
+				$appt_date				=		'';
+			}
+
+			if(isset($data_array['time'])) {
+				$appt_time				=		Utilities::clean_string($data_array['time']);
+			} else {
+				$appt_time				=		'';
+			}
+
+			if(isset($data_array['total_people'])) {
+				$people_count			=		Utilities::clean_string($data_array['total_people']);
+			} else {
+				$people_count			=		'';
+			}
+
+			if(isset($data_array['total_make_up'])) {
+				$no_of_makeup			=		Utilities::clean_string($data_array['total_make_up']);
+			} else {
+				$no_of_makeup			=		'';
+			}
+
+			if(isset($data_array['total_hair'])) {
+				$no_of_hair				=		Utilities::clean_string($data_array['total_hair']);
+			} else {
+				$no_of_hair				=		'';
+			}
+
+			if(isset($data_array['appt_type'])) {
+				$appt_type				=		Utilities::clean_string($data_array['appt_type']);
+			} else {
+				$appt_type				=		'';
+			}
+
+			if(isset($data_array['address'])) {
+				$address				=		Utilities::clean_string($data_array['address']);
+			} else {
+				$address				=		'';
+			}
+
+			if(isset($data_array['city'])) {
+				$city_name				=		Utilities::clean_string($data_array['city']);
+			} else {
+				$city_name				=		'';
+			}
+
+			if(isset($data_array['state_id'])) {
+				$state_code				=		Utilities::clean_string($data_array['state_id']);
+			} else {
+				$state_code				=		'';
+			}
+
+			if(isset($data_array['pincode'])) {
+				$pincode				=		Utilities::clean_string($data_array['pincode']);
+			} else {
+				$pincode				=		'';
+			}
+
+			if(isset($data_array['contact_number'])) {
+				$contact_number				=		Utilities::clean_string($data_array['contact_number']);
+			} else {
+				$contact_number				=		'';
+			}
+
+			if(isset($data_array['venue_type'])) {
+				$venue_type				=		Utilities::clean_string($data_array['venue_type']);
+			} else {
+				$venue_type				=		'';
+			}
+
+			if(isset($data_array['landmark'])) {
+				$landmark				=		Utilities::clean_string($data_array['landmark']);
+			} else {
+				$landmark				=		'';
+			}
+			
+			if(isset($data_array['special_request'])) {
+				$comments				=		Utilities::clean_string($data_array['special_request']);
+			} else {
+				$comments				=		'';
+			}
+			
+			if(isset($data_array['admin_notes'])) {
+				$admin_notes				=		Utilities::clean_string($data_array['admin_notes']);
+			} else {
+				$admin_notes				=		'';
+			}
+			
+			if(isset($data_array['appt_source'])) {
+				$source				=		Utilities::clean_string($data_array['appt_source']);
+			} else {
+				$source				=		'Portal';
+			}
+
+			$state_id				=		Utilities::get_state_id($state_code);
+
+			# perform validations
+			if( !in_array(ucfirst($event_type), array('Wedding','Birthday','Anniversary','Bachelorette','Baby Shower','Girl\'s Night Out','Others')) ) {
+				$errors['event_type']			=		'Invalid event type';
+			}
+
+			if($address == '') {
+				$errors['address']				=		'Address is required';
+			}
+
+			if($city_name == '') {
+				$errors['city']					=		'City name is required';
+			}
+
+			if( !$state_id ) {
+				$errors['state_id']				=		'Invalid state name';
+			}
+
+			if($pincode == '') {
+				$errors['pincode']				=		'Postal Code is required';
+			}
+
+			if( $pincode != '' &&  !is_numeric($pincode) ) {
+				$errors['pincode']				=		'Postal Code is not a valid input';
+			}
+
+			if($appt_date == '') {
+				$errors['appt_date']			=		'Service Date is required';
+			}
+			else{
+				if(!Validation::check_date_format($appt_date)){
+                    $errors['appt_date']		=		'Service Date is not a valid date format';
+                }
+			}
+
+			if($appt_time == '') {
+				$errors['appt_time']			=		'Service Time is required';
+			}
+			else{
+				if(!Validation::check_timeformat24($appt_time)){
+                    $errors['appt_time']		=		'Service Time is not a valid time format';
+                }
+			}
+
+			/*if($contact_number != '') {
+			//echo Validation::phone_format($contact_number);
+				if(!Validation::phone_format($contact_number)){
+                    $errors['contact_number']		=		'Contact Number is not a valid format';
+                }
+			}*/
+			
+
+			if( $people_count != '' &&  !is_numeric($people_count) ) {
+				$errors['total_people']			=		'Total people must be a number';
+			}
+
+			if( $no_of_makeup != '' && !is_numeric($no_of_makeup) ) {
+				$errors['total_make_up']		=		'Total people for make up must be a number';
+			}
+
+			if( $no_of_hair != '' && !is_numeric($no_of_hair) ) {
+				$errors['no_of_hair']			=		'Total people for hair must be a number';
+			}
+
+			if( !in_array(ucfirst($appt_type), array('Actual', 'Trial')) ) {
+				$errors['appt_type']			=		'Invalid appointment type';
+			}
+
+
+			# if errors throw errors, otherwise insert / update appointment information.
+			if( count($errors)>0 ) {
+				$err_string = implode(',',$errors);
+				return array($status_code => array('status' => 'failed','errorcode'=>'800','errortext'=>$err_string));
+			}
+
+			$appts_array['uid']					=		$uid;
+			$appts_array['event_type']			=		$event_type;
+			$appts_array['appt_date']			=		date('Y-m-d',strtotime($appt_date));
+			$appts_array['appt_time']			=		$appt_time;
+			$appts_array['people_count']		=		$people_count;
+			$appts_array['no_of_makeup	']		=		$no_of_makeup;
+			$appts_array['no_of_hair']			=		$no_of_hair;
+			$appts_array['appt_type']			=		$appt_type;
+			$appts_array['address']				=		$address;
+			$appts_array['city_name']			=		$city_name;
+			$appts_array['state_id']			=		$state_id;
+			$appts_array['pincode']				=		$pincode;
+			$appts_array['contact_number']		=		$contact_number;
+			$appts_array['venue_type']		    =		$venue_type;
+			$appts_array['landmark']		    =		$landmark;
+			$appts_array['comments']		    =		$comments;
+			$appts_array['appt_source']		    =		$source;
+			$appts_array['admin_notes']		    =		$admin_notes;
+			$appts_array['status']				=		0;
+			
+			$unavailable_aritists = array();
+			$total_services = $no_of_makeup + $no_of_hair;
+			$req_artist_count = 1;
+			if($total_services < 7)
+			{
+			   $req_artist_count = 1;
+			}
+			else if($total_services > 24)
+			{
+			   $req_artist_count = -1;
+			}
+			else
+			{
+			   $req_artist_count = round($total_services/6);
+			}
+			
+			$ah = 0; $am = 0; $ahm = 0;
+			$sendmail = 0;
+			if($total_services < 7)
+			{
+			   if($no_of_makeup == 0 && $no_of_hair > 0)
+			   {
+			     $ah = 1; $am = 0; $ahm = 0;
+			   }
+			   else if($no_of_makeup > 0 && $no_of_hair == 0)
+			   {
+			     $ah = 0; $am = 1; $ahm = 0;
+			   }
+			   else
+			   {
+			      $ah = 0; $am = 0; $ahm = 1;
+			   }
+			}
+			else if($total_services >= 7 && $total_services <= 24)
+			{
+			   if($no_of_makeup == 0 && $no_of_hair >= 7)
+			   {
+			     $ah = $req_artist_count; $am = 0; $ahm = 0;
+			   }
+			   else if($no_of_makeup >= 7 && $no_of_hair == 0)
+			   {
+			     $am = $req_artist_count; $ah = 0; $ahm = 0;
+			   }
+			   else if($no_of_makeup >= 7 && $no_of_hair <= 2)
+			   {
+			     $am = $req_artist_count-1; $ah = 0; $ahm = 1;
+			   }
+			   else if($no_of_makeup <= 2 && $no_of_hair >= 7)
+			   {
+			     $ah = $req_artist_count-1; $am = 0; $ahm = 1;
+			   }
+			   else
+			   {
+			     $ah = 0; $am = 0; $ahm = 0; //it means sum of all 3, all 3 types of artists are to be selected.  $am+$ahm+$ah = $req_artist_count;
+			   }
+			}
+			else
+			{
+			  $ah = -1; $am = -1; $ahm = -1; $sendmail = 1;
+			}
+
+			if($new_appointment) {
+				//$appts_array['appt_code']		=		Utilities::get_unique_code();
+				$appts_array['appt_code']       =		strtoupper(substr(md5(mt_rand(100000,999999).time()),0,12)); //Random Appt code
+				$appt_id						=		Utilities::save_to_database('bea_appointments',$appts_array);
+
+				if($appt_id>0) {
+					$appt_details 				=		$this->get_appointment_details($appt_id,'id');
+					$less_available_aritists    =		array();
+					if($total_services <= 24)
+					{
+					  $available_aritists 		    = 		Artist::get_available_artists_list($appt_id,$appt_details['appt_date'],$ah,$am,$ahm,$state_id,$appt_time);
+					  $unavailable_aritists 		= 		Artist::get_unavailable_artists_list($appt_id,$appt_details['appt_date']);
+					  
+					  if(count($available_aritists) < $req_artist_count)
+					  {
+					     $less_available_aritists = $available_aritists;
+					     $available_aritists = array();
+					  }
+					}
+					$showartist = 0;
+					foreach($available_aritists as $a)
+					{
+					  if($a['show_artist'] == 1)
+					  {
+					    $showartist++;
+					  }
+					}
+					
+					if(count($available_aritists) == 0 || $showartist == 0)
+					{
+					  $sendmail = 1;
+					}
+					else
+					{
+					  $update_apt = R::exec("update bea_appointments set artist_avail = 1 where appt_code = '".$appt_details['appt_code']."'");
+					}
+					
+					
+					$response	=  array('status' => 'success','appt_id'=>$appt_details['appt_code'],'available_aritists' => $available_aritists,'less_available' => $less_available_aritists,'unavailable_aritists' => $unavailable_aritists,'required_artists_count' => $req_artist_count,'required_artists_hair' => $ah,'required_artists_makeup' => $am,'required_artists_both' => $ahm);
+					
+					if($sendmail == 1)
+					{
+					    $app_dets = R::getRow("SELECT a.appt_id,a.uid,date_format(a.appt_date,'%M %d, %Y') AS appt_date,a.appt_time,u.first_name,u.last_name,u.email,u.primary_phone as contact_number,a.event_type,a.people_count,a.no_of_makeup, a.no_of_hair,a.address, a.city_name, a.pincode, s.state_code FROM `bea_appointments` a, bea_users u, bea_states_master s WHERE appt_code = '".$appt_details['appt_code']."' and a.uid = u.uid and a.state_id = s.state_id ");
+					   
+					    //send mail to admin about appointment booking
+						$to_email = explode(",", glob::var_get('to_email')); 
+						$mail_data['to_email'] = $to_email;
+						$mail_data['subject']  = "Attention: Appointment unavailable for ".$app_dets['first_name']." ".$app_dets['last_name']." | ".$app_dets['contact_number'];
+						
+						$date1 = date_create($app_dets['appt_time']);
+						$apt_time = date_format($date1,"h:i A");
+						$mail_data['body'] 	   =  '<div>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Hello BE Admin,</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">You have received a new request for an appointment but as no Artist was available the booking could not be confirmed.<br><br>Here are the details.<br></span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Booked by: '.$app_dets['first_name'].' '.$app_dets['last_name'].'('.$app_dets['email'].')</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Contact Number: '.$app_dets['contact_number'].'</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Number of People: '.$app_dets['people_count'].'</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Services Required: '.$app_dets['no_of_hair'].' Hair and '.$app_dets['no_of_makeup'].' Makeup</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Event Date &amp; Time: '.$app_dets['appt_date'].', '.$apt_time.'</span></p>						
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Address: &nbsp;'.urldecode($app_dets['address']).', '.$app_dets['city_name'].', '.$app_dets['pincode'].', '.$app_dets['state_code'].'</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<b><u><a href="http://dev.popcornapps.com/be/admin_test"><span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Click here</span></a></u></b><span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt"> to go to BE Control Center to manage this appointment.</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">This is an automated mail from BE Control Center. Do not reply to this mail.</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+						<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+						<span style="color:rgb(255,0,102); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Beauty Entourage Control Center</span></p>
+						</div>';
+						
+						Utilities::sendEmail($mail_data); //send email to admin
+					}
+				} else {
+					$response					=		array('status' => 'failed','errortext'=>'Unable to book appointment');
+				}
+			} else {
+ 				Utilities::update_db('bea_appointments',$appts_array,' WHERE appt_id='.$appt_id);
+				$response						=		array('status' => 'success');
+			}
+
+			return array($status_code => $response);
+		}
+	}
+
+	/**
+	 * Add trail date to an appointment.
+	 * @param $data_array 
+	 *
+	 * @return 
+	 *   Response.
+	**/
+	public function add_trail_date($data_array=array()) {
+
+		$status_code	=	200;
+
+		$errors = array();
+		if(!isset($data_array['appt_id'])){
+			array_push($errors,"Appointment Id is required");
+		} else {
+			
+			$data_array['appt_id']   =     Validation::clean_string($data_array['appt_id']);
+	        $validations 	= 	array(	
+	        							'required'	=> array('field_name'=>'Appointment Id'),
+	        							'alphanumeric'		=> array('min'=>'0','max'=>'50','field_name'=>'Appointment Id')
+	    							);
+            $field_errors    =  Validation::check_field($data_array['appt_id'],$validations);
+            if(count($field_errors) > 0){
+            	array_push($errors,implode(',',$field_errors));
+            }
+		}
+		
+		if(!isset($data_array['trail_date'])){
+			array_push($errors,"Trail date is required");
+		} else {
+		    $data_array['trail_date']   =     Validation::clean_string($data_array['trail_date']);
+			$validations 	= 	array(	
+	        							'required'	=> array('field_name'=>'Trail date'),
+	        							'date'		=> array('field_name'=>'Trail date')
+	    							);
+            $field_errors    =  Validation::check_field($data_array['trail_date'],$validations);
+            if(count($field_errors) > 0){
+            	array_push($errors,implode(',',$field_errors));
+            }
+		}
+		
+		# if errors throw errors, otherwise insert / update appointment information.
+		if( count($errors)>0 ) {
+			$err_string = implode(',',$errors);
+			return array($status_code => array('status' => 'failed','errorcode'=>'800','errortext'=>$err_string));
+		}
+		
+		$appt_id		=	$data_array['appt_id'];
+		$appt_details 	=	$this->get_appointment_details($appt_id);
+		
+		//check trail date less than appointment date
+		$sql = "SELECT if((appt_date > '".$data_array['trail_date']."' AND '".$data_array['trail_date']."' >= NOW()), 1,0) as check_date FROM `bea_appointments` where appt_id = '".$appt_details['appt_id']."'";
+		$res = R::getRow($sql);
+		
+		if($res['check_date'] == 1){
+			//add trail date to appointment
+			$sql	= 	"UPDATE `bea_appointments` SET `trail_date` = '".$data_array['trail_date']."' WHERE appt_id = '".$appt_details['appt_id']."'";
+			$result	=  	R::exec($sql);
+			
+			if($result){
+				$response	=	array('status' => 'success','Message' => 'Trial appointment booked');
+			}
+			else{
+			    $response	=	array('status' => 'failed','errortext'=>'Unable to add trail date', 'errorcode'=>900);
+			}
+		}
+		else
+		{
+		   $response	=	array('status' => 'failed','errortext'=>'Trail date should be less than appointment date', 'errorcode'=>900);
+		}
+		
+		return array($status_code => $response);
+	}
+	
+	/**
+	 * Assign artist to an appointment.
+	 * @param $data_array 
+	 *
+	 * @return 
+	 *   Response.
+	**/
+	public function assign_appointment_artist($data_array=array()) {
+
+		$status_code	=	200;
+
+		$errors = array();
+		if(!isset($data_array['appt_id'])){
+			array_push($errors,"Appointment Id is required");
+		} else {
+			
+			$data_array['appt_id']   =     Validation::clean_string($data_array['appt_id']);
+	        $validations 	= 	array(	
+	        							'required'	=> array('field_name'=>'Appointment Id'),
+	        							'alphanumeric'		=> array('min'=>'0','max'=>'50','field_name'=>'Appointment Id')
+	    							);
+            $field_errors    =  Validation::check_field($data_array['appt_id'],$validations);
+            if(count($field_errors) > 0){
+            	array_push($errors,implode(',',$field_errors));
+            }
+		}
+
+		if(!isset($data_array['artist_ids'])) {
+			array_push($errors,"Artist Id is required");
+		} else {
+			
+			$data_array['artist_ids']   =     Validation::clean_string($data_array['artist_ids']);
+	        $validations 	= 	array(	
+	        							'required'	=> array('field_name'=>'Artist Id'),
+	        							'string'	=> array('min'=>'0','max'=>'100','field_name'=>'Artist Id')
+	    							);
+            $field_errors    =  Validation::check_field($data_array['artist_ids'],$validations);
+            if(count($field_errors) > 0){
+            	array_push($errors,implode(',',$field_errors));
+            }
+		}
+		
+		if(!isset($data_array['card_id'])) {
+			array_push($errors,"Card Id is required");
+		} else {
+			
+			$data_array['card_id']   =     Validation::clean_string($data_array['card_id']);
+	        $validations 	= 	array(	
+	        							'required'	=> array('field_name'=>'Card Id'),
+	        							'number'	=> array('min'=>'0','max'=>'100','field_name'=>'Card Id')
+	    							);
+            $field_errors    =  Validation::check_field($data_array['card_id'],$validations);
+            if(count($field_errors) > 0){
+            	array_push($errors,implode(',',$field_errors));
+            }
+		}
+
+		if(count($errors) > 0){
+            $errors_string = implode(',',$errors);
+            return array( 200 => array('status' => 'failed', 'errortext'=>$errors_string) );
+        }
+
+
+		$appt_id		=	$data_array['appt_id'];
+		$artist_ids 	= 	$data_array['artist_ids'];
+		$arr_artist_ids = 	explode(',',$artist_ids);
+		
+		$insert_flag 	= 	0;
+		$appt_details 	=	$this->get_appointment_details($appt_id);
+		
+		foreach($arr_artist_ids as $art_id)
+		{
+			# check whether artist id and appointment id are valid or not.
+			$artist_details	=		Artist::check_is_artist_valid($art_id);
+
+			if(count($artist_details) == 0) 
+			{
+			   return array( 200 => array('status' => 'failed', 'errortext'=>'Artist does not exist') );
+			}
+			
+		}
+		
+		//check appointment exist
+		$check_appt = R::getRow("select * from bea_appointments where appt_code = '".$data_array['appt_id']."'");
+		
+		if(count($check_appt) == 0)
+		{
+		  return array( 200 => array('status' => 'failed', 'errortext'=>'Appointment does not exist'));
+		}
+		
+		//if($insert_flag == count($arr_artist_ids) ) {
+		    require('../payment/customer.php');
+			$customer = new Customer();
+            
+            $card_profile_id = "";
+			$card_payment_profile_id = "";
+			//card_id Validation
+	        if(isset($data_array['card_id'])){
+	           $card_dets = R::getRow("select * from bea_user_cards where card_id = ".$data_array['card_id']);
+	           if(count($card_dets) > 0)
+			   {
+			     $card_profile_id = $card_dets['authorize_profileid'];
+			     $card_payment_profile_id = $card_dets['authorize_payment_profileid'];
+			   }
+			   else
+			   {
+			     array_push($errors,'Card id is not valid');
+			   }
+	        }
+			
+			if($card_profile_id == "" ||  $card_payment_profile_id == "")
+			{
+			   $response = array('status' => 'failed','errortext'=>'Card Profile error', 'errorcode'=>900);
+			   return array($status_code => $response);
+			}
+			
+			$deposit_amt = "75";
+			if(isset($data_array['deposit_amt']) && $data_array['deposit_amt'] !="")
+			{
+			  $deposit_amt = $data_array['deposit_amt'];
+			}
+            $payment = $customer->charge_customer_profile($card_profile_id,$card_payment_profile_id, $deposit_amt);
+			
+			if( !isset($payment['customerProfileError']) && count($payment) > 0 ) {
+			    $artist_email   =   array();
+				$at = 0;
+				foreach($arr_artist_ids as $art_id){
+					# check whether artist id and appointment id are valid or not.
+					$artist_details	=		Artist::check_is_artist_valid($art_id);
+
+					if(count($artist_details)>0 && count($appt_details)>0) {
+						$apt_data_array					=		array();
+						$apt_data_array['appt_id']		=		$appt_details['appt_id'];
+						$apt_data_array['artist_id']	=		$artist_details['artist_id'];
+						$artist_appt_id				=		Utilities::save_to_database('bea_appointment_artists',$apt_data_array);
+						if($artist_appt_id > 0) 
+						{
+							$insert_flag++;
+							$artist_email[$at] = $artist_details['emailid'];
+							$at++;
+						}
+					}
+				}
+			
+				$app_dets = R::getRow("SELECT a.appt_id,a.uid,date_format(a.appt_date,'%M %d, %Y') AS appt_date,a.appt_time,u.first_name,u.last_name,u.email,u.primary_phone as contact_number,a.event_type,a.people_count,a.no_of_makeup, a.no_of_hair,a.address, a.city_name, a.pincode, s.state_code FROM `bea_appointments` a, bea_users u, bea_states_master s WHERE appt_id = ".$appt_details['appt_id']." and a.uid = u.uid and a.state_id = s.state_id ");
+
+				$artist_count = R::getRow("select count(*) as artist_count from bea_appointment_artists where appt_id = ".$appt_details['appt_id']);
+
+				//calculating artist arrival time
+				$no_of_artists = $artist_count['artist_count'];
+				$total_services = $app_dets['no_of_hair'] + $app_dets['no_of_makeup'];
+				$num = $total_services/$no_of_artists;
+				$duration = 45+(($num-1)*30);
+				$date2 = date_create($app_dets['appt_date']." ".$app_dets['appt_time']);
+				date_sub($date2,date_interval_create_from_date_string($duration." minutes"));
+				$service_duration = $duration." min";
+				$artist_arrival = date_format($date2,"M d, Y h:i A");
+				$artist_arrival_format = date_format($date2,"Y-m-d h:i");
+				$apt_start_date = date_format($date2,"Y-m-d");
+				$apt_start_time = date_format($date2,"h:i");
+			
+				//change the appointment status to '1' and update the transaction details
+				$sql 	=  "UPDATE bea_appointments SET status = 1, appt_start_date = '".$apt_start_date."', appt_start_time = '".$apt_start_time."',artist_count = ".$no_of_artists.", service_duration = '".$service_duration."', artist_arrival = '".$artist_arrival."', artist_arrival_format = '".$artist_arrival_format."',transaction_id='".$payment['Customer_profile_TRANS_ID']."',  travel_deposit_amt='".$deposit_amt."', transaction_status='success' WHERE appt_id = '".$appt_details['appt_id']."'";
+				$result					=  		R::exec($sql);
+
+				if($result){
+					$mail_data['to_email'] = array($app_dets['email']); 
+					$mail_data['subject']  = "Beauty Entourage - Appointment booked successfully";
+					$mail_data['body'] 	   =  "Thank you for booking Beauty Entourage for your event! Congratulations.<br/><br/> To ensure we have all of the details and the best artist to suit your needs, we have a designated coordinator that will follow up with you within 24 hrs by phone. If you have questions before then, simply reply to this email and we will do our best to answer any immediate needs you have.  Our coordinators specialize in timing and logistics involved with grouped bookings and special events. We are excited to work with you! <br/><br/>Ashley Stone <br/> Owner of Beauty Entourage";
+					
+					Utilities::sendEmail($mail_data); //send email to customer
+					
+					//send mail to admin about appointment booking
+					$to_email = explode(",", glob::var_get('to_email')); 
+					$mail_data['to_email'] = $to_email;
+					$mail_data['subject']  = "New Appointment with ".$app_dets['first_name']." ".$app_dets['last_name'];
+					
+					$date1 = date_create($app_dets['appt_time']);
+				    $apt_time = date_format($date1,"h:i A");
+					$mail_data['body'] 	   =  '<div><p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Hello BE Admin,</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Received a new appointment booking with below details</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Booked by: '.$app_dets['first_name'].' '.$app_dets['last_name'].'('.$app_dets['email'].')</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Contact Number: '.$app_dets['contact_number'].'</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Number of People: '.$app_dets['people_count'].'</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Services Required: '.$app_dets['no_of_hair'].' Hair and '.$app_dets['no_of_makeup'].' Makeup</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Event Date &amp; Time: '.$app_dets['appt_date'].', '.$apt_time.'</span></p>
+					<!-- <p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Suggested Artist Arrival Time: December 12,2015 : &nbsp;8:00 PM</span></p> -->
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Address: &nbsp;'.urldecode($app_dets['address']).', '.$app_dets['city_name'].', '.$app_dets['pincode'].', '.$app_dets['state_code'].'</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<b><u><a href="http://dev.popcornapps.com/be/admin_test"><span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Click here</span></a></u></b><span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt"> to go to BE Control Center to manage this appointment.</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">This is an automated mail from BE Control Center. Do not reply to this mail.</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(255,0,102); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Beauty Entourage Control Center</span></p>
+					</div>';
+					
+					Utilities::sendEmail($mail_data); //send email to admin
+					
+					//send mail to artist about appointment booking
+					$to_email = $artist_email;
+					$mail_data['to_email'] = $to_email;
+					$mail_data['subject']  = "New Appointment with ".$app_dets['first_name']." ".$app_dets['last_name'];
+					
+					$date1 = date_create($app_dets['appt_time']);
+				    $apt_time = date_format($date1,"h:i A");
+					$mail_data['body'] 	   =  '<div><p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Hello BE Artist,</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Received a new appointment booking with below details</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Booked by: '.$app_dets['first_name'].' '.$app_dets['last_name'].'('.$app_dets['email'].')</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Contact Number: '.$app_dets['contact_number'].'</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Number of People: '.$app_dets['people_count'].'</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Services Required: '.$app_dets['no_of_hair'].' Hair and '.$app_dets['no_of_makeup'].' Makeup</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Event Date &amp; Time: '.$app_dets['appt_date'].', '.$apt_time.'</span></p>
+					<!-- <p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Suggested Artist Arrival Time: December 12,2015 : &nbsp;8:00 PM</span></p> -->
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Address: &nbsp;'.urldecode($app_dets['address']).', '.$app_dets['city_name'].', '.$app_dets['pincode'].', '.$app_dets['state_code'].'</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Please login to the app to view the details.</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">This is an automated mail from BE Control Center. Do not reply to this mail.</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(31,73,125); font-family:&quot;Calibri&quot;,serif; font-size:11pt">&nbsp;</span></p>
+					<p style="margin:0in 0in 0pt; font-family:&quot;Times New Roman&quot;,serif; font-size:12pt">
+					<span style="color:rgb(255,0,102); font-family:&quot;Calibri&quot;,serif; font-size:11pt">Beauty Entourage Control Center</span></p>
+					</div>';
+					
+					Utilities::sendEmail($mail_data); //send email to artist
+					
+					
+					
+					$response			=		array('status' => 'success','artist_arrival'=>$artist_arrival);
+				} else {
+					$response			=		array('status' => 'failed','errortext'=>'Unable to book Appointment', 'errorcode'=>900);
+				}
+
+			} else {
+				//update the appointment transaction details on failure
+				if(count($payment) == 0)
+				{
+				   $response			=		array('status' => 'failed','errortext'=>'Unable to book Appointment, payment returned empty response, Please try again', 'errorcode'=>900);
+				}
+				else{
+				  $sql 				= 		"UPDATE bea_appointments SET transaction_id='".$payment['Customer_profile_TRANS_ID']."', travel_deposit_amt='".$travel_deposit_amt."', transaction_date=NOW(),transaction_status='failed' WHERE appt_id = '".$appt_details['appt_id']."'";
+				  $result			=  		R::exec($sql);
+				  $response			=		array('status' => 'failed','errortext'=>'Unable to book Appointment, due to payment failure, Please try again', 'errorcode'=>900);
+				}
+			}
+
+		/*} else {
+			$response				=		array('status' => 'failed','errortext'=>'Unable to assign Artist', 'errorcode'=>900);
+		}*/
+		
+		return array($status_code => $response);
+	}
+	
+	/**
+	 * Get all available artist.
+	 * @param $data_array 
+	 *
+	 * @return 
+	 *   Response.
+	**/
+	public function get_all_avail_artists($data_array=array()) {
+	   
+	   $status_code = "200";
+	   $artist_pic = 'http://dev.popcornapps.com/be/api/uploads/profile/';
+       $artists = array();
+       //$sql = "select ba.artist_id,ba.`first_name`,ba.`last_name`,ba.location_id, ba.emailid,ba.contact_number,s.state_code from bea_artists ba,bea_states_master s, bea_business_locations l where ba.location_id = l.location_id and l.state_id = s.state_id and ba.status=1 AND ba.artist_id not in (select artist_id from bea_appointment_artists where status = 1 AND appt_id in (select appt_id from bea_appointments where appt_date = '".$data_array['appt_date']."' AND status=1)) and artist_id not in (select DISTINCT bau.artist_id from bea_artists ba1,bea_artist_unavaildates bau where bau.from_date<='".$data_array['appt_date']."' AND bau.to_date>='".$data_array['appt_date']."' AND bau.status=1)  and artist_id in (select artist_id from bea_artist_availdates where from_date <= '".$data_array['appt_date']."' and to_date >= '".$data_array['appt_date']."'and artist_id not in (select artist_id from bea_artist_availdates d,bea_artist_availdate_timings t  where from_date = '".$data_array['appt_date']."' and to_date = '".$data_array['appt_date']."' and from_time = '00:00:00' and d.avail_date_id = t.availdate_id and from_time = to_time))";
+	   
+	   $sql = "select ba.artist_id,ba.`first_name`,ba.`last_name`,ba.location_id, ba.emailid,ba.contact_number,s.state_code from bea_artists ba,bea_states_master s, bea_business_locations l where ba.location_id = l.location_id and l.state_id = s.state_id and ba.status=1 AND ba.artist_id not in (select artist_id from bea_appointment_artists where status = 1 AND appt_id in (select appt_id from bea_appointments where appt_date = '".$data_array['appt_date']."' AND status=1)) and artist_id not in (select DISTINCT bau.artist_id from bea_artists ba1,bea_artist_unavaildates bau where bau.from_date<='".$data_array['appt_date']."' AND bau.to_date>='".$data_array['appt_date']."' AND bau.status=1)  and artist_id in (select artist_id from bea_artist_availdates where from_date <= '".$data_array['appt_date']."' and to_date >= '".$data_array['appt_date']."')";
+	
+       $artists    =   R::getAll($sql); 
+	   //echo count($artists);
+	   foreach($artists as $key => $artist)
+	   {
+		    $serv_list = R::getAll("SELECT sa.service_type_id,s.service_type_name FROM `bea_artist_services` sa, bea_service_types s WHERE sa.service_type_id = s.service_type_id and sa.artist_id = ".$artist['artist_id']);
+			$sl = "";
+			foreach($serv_list as $s)
+			{
+			   $sl .= ", ".$s['service_type_name'];
+			}
+			$serv = trim(substr($sl,2));
+			$artists[$key]['service_type'] = substr($sl,1); //$this->get_service_types_list($artist['artist_id'])['200']['response']['service_types'];
+			$artists[$key]['show_artist'] = "1";
+			$availdate = R::getAll("SELECT * FROM bea_artist_availdates WHERE artist_id = ".$artist['artist_id']." and from_date <= '".$data_array['appt_date']."' and to_date >= '".$data_array['appt_date']."' order by created_date desc");
+			if(count($availdate) > 0)
+			{
+			   $timings = R::getAll("select * from bea_artist_availdate_timings where availdate_id = ".$availdate[0]['avail_date_id']." and from_time != '00:00:00' and from_time != to_time and from_time <= '".$data_array['appt_time']."' and to_time >= '".$data_array['appt_time']."' order by from_time asc");
+			   
+			   if(count($timings) > 0)
+			   {
+			     $artists[$key]['show_artist'] = "1";
+			   }
+			   else
+			   {
+			     $artists[$key]['show_artist'] = "0";
+			   }
+			}
+			else
+			{
+			   $artists[$key]['show_artist'] = "0";
+			}
+			if($ah == 0 && $am == 0 && $ahm == 0)
+			{
+			   
+			}
+			else if($artists[$key]['show_artist'] == "1") {
+				if($ah == 0)
+				{
+				  if(trim($serv) == "Hair")
+				  {
+					 $artists[$key]['show_artist'] = "0";
+				  }
+				}			
+				if($am == 0)
+				{
+				  if(trim($serv) == "Makeup")
+				  {
+					 $artists[$key]['show_artist'] = "0";
+				  }
+				}
+				
+				if($ahm == 0)
+				{
+				  if(trim($serv) == "Hair, Makeup")
+				  {
+					 $artists[$key]['show_artist'] = "0";
+				  }
+				}
+			}
+		}
+		$total_services = $data_array['makeup'] + $data_array['hair'];
+		$req_artist_count = 1;
+		if($total_services < 7)
+		{
+		   $req_artist_count = 1;
+		}
+		else if($total_services > 24)
+		{
+		   $req_artist_count = -1;
+		}
+		else
+		{
+		   $req_artist_count = round($total_services/6);
+		}
+		$response	=  array('status' => 'success','available_aritists' => $artists,'required_artists_count'=>$req_artist_count);
+        return array($status_code => $response);
+	}
+	
+
+	/**
+	 * return appointment details based on code or id.
+	 *
+	 * @param string $id_or_phone
+	 * @param $option
+	 *
+	 * @return
+	 *   array appointment details
+	**/
+	protected function get_appointment_details($id_or_code='', $option='code') {
+		if($option == 'code') {
+ 			$sql = "SELECT * FROM `bea_appointments` WHERE `appt_code`='$id_or_code'";
+		} else {
+ 			$sql = "SELECT * FROM `bea_appointments` WHERE `appt_id`='$id_or_code'";
+		}
+
+		return R::getRow($sql);
+	}
+	
+	public function fix_appt_time()
+	{
+	  
+	  $appts = R::getAll("SELECT a.appt_id,a.uid,date_format(a.appt_date,'%M %d, %Y') AS appt_date,a.appt_time,u.first_name,u.last_name,u.email,u.primary_phone as contact_number,a.event_type,a.people_count,a.no_of_makeup, a.no_of_hair,a.address, a.city_name, a.pincode, s.state_code FROM `bea_appointments` a, bea_users u, bea_states_master s WHERE a.status = 1 and a.uid = u.uid and a.state_id = s.state_id ");
+	  foreach($appts as $app_dets){
+	  $artist_count = R::getRow("select count(*) as artist_count from bea_appointment_artists where appt_id = ".$app_dets['appt_id']);
+	  echo $app_dets['appt_id']." - ";
+
+				//calculating artist arrival time
+				echo $no_of_artists = $artist_count['artist_count'];
+				$total_services = $app_dets['no_of_hair'] + $app_dets['no_of_makeup'];
+				if($total_services > 0 && $no_of_artists >0){
+				$num = $total_services/$no_of_artists;
+				$duration = 45+(($num-1)*30);
+				$date2 = date_create($app_dets['appt_date']." ".$app_dets['appt_time']);
+				date_sub($date2,date_interval_create_from_date_string($duration." minutes")); echo " - ";
+				echo $service_duration = $duration." min";
+				$artist_arrival = date_format($date2,"M d, Y h:i A");
+				$artist_arrival_format = date_format($date2,"Y-m-d h:i"); echo "<br>";
+				$apt_start_date = date_format($date2,"Y-m-d");
+				$apt_start_time = date_format($date2,"H:i");
+				
+				$res = R::exec("update bea_appointments set appt_start_date = '".$apt_start_date."', appt_start_time = '".$apt_start_time."',artist_count = ".$no_of_artists.", service_duration = '".$service_duration."', artist_arrival = '".$artist_arrival."', artist_arrival_format = '".$artist_arrival_format."'  where appt_id = ".$app_dets['appt_id']);
+				echo " - ".$res;
+				}
+				echo "<br>";
+				}
+	}
+
+
+	/**
+	 * return all appointments list
+	 *
+	 * @from_date - from date [functionality not yet required]
+	 * @to_date - to date
+	 *
+	 * @return
+	 *   array appointments list
+	**/
+	public function get_appointments_list($data_array=array()) {
+
+		$status_code = 200;
+
+		// when user id is sent, add condition in appointments query to get only corresponding users appointments
+		$user_where_criterion = " ";
+		if(isset($data_array['uid']) ) {
+
+			$errors = array();
+			$uuid   =     Validation::clean_string($data_array['uid']);
+	        $validations 	= 	array(	
+	        							'required' 		=> array('field_name'=>'User Id'),
+	        							'alphanumeric'	=> array('min'=>'0','max'=>'50','field_name'=>'User Id')
+	    							 );
+            $errors    =  Validation::check_field($uuid,$validations);
+            if(count($errors) > 0){
+            	return array( 200 => array('status' => 'failed' , 'errortext' => implode(',',$errors) ) );
+            }
+
+            $uid = Utilities::get_user_data($uuid,2);
+            if($uid) {
+            	$user_where_criterion = " and appts.`uid` = '$uid' ";
+            } else {
+            	return array($status_code => array('status' => 'failed','errortext'=>'There seems to be an issue with your account. Please try logging in again or contact BE for support.'));
+            }            
+		}
+		
+		if(isset($data_array['apt_date']) && $data_array['apt_date'] != "")
+		{
+		   $sql = "SELECT appts.*, ifnull(appts.comments, '') as comments_a, ifnull(appts.admin_notes, '') as admin_notes_a, baa.`artist_id`,CONCAT(bu.first_name,' ',bu.last_name) AS user_name, bu.email,bu.primary_phone, CONCAT(ba.first_name,' ', ba.last_name) AS artist_name,ba.profile_pic,ba.contact_number,bsm.state_name FROM `bea_appointments` appts LEFT JOIN bea_users bu ON bu.uid=appts.`uid` LEFT JOIN bea_states_master bsm ON bsm.state_id=appts.state_id LEFT JOIN bea_appointment_artists baa ON appts.`appt_id` = baa.`appt_id` LEFT JOIN bea_artists ba ON ba.`artist_id`=baa.`artist_id` WHERE appts.appt_date = '".$data_array['apt_date']."' and appts.`status` = '1' $user_where_criterion ORDER BY appts.`appt_date` DESC";
+		}
+		else
+		{
+		   $sql = "SELECT appts.*,ifnull(appts.comments, '') as comments_a, ifnull(appts.admin_notes, '') as admin_notes_a,baa.`artist_id`,CONCAT(bu.first_name,' ',bu.last_name) AS user_name, bu.email,bu.primary_phone, CONCAT(ba.first_name,' ', ba.last_name) AS artist_name,ba.profile_pic,ba.contact_number,bsm.state_name FROM `bea_appointments` appts LEFT JOIN bea_users bu ON bu.uid=appts.`uid` LEFT JOIN bea_states_master bsm ON bsm.state_id=appts.state_id LEFT JOIN bea_appointment_artists baa ON appts.`appt_id` = baa.`appt_id` LEFT JOIN bea_artists ba ON ba.`artist_id`=baa.`artist_id` WHERE appts.`status` = '1' $user_where_criterion ORDER BY appts.`appt_date` DESC";
+		}
+
+ 		$appts_list = R::getAll($sql);
+
+		$artist_pic = 'http://dev.popcornapps.com/be/api/uploads/profile/';
+
+		$appointments_array = array();
+		foreach($appts_list as $appt) {
+			$apt_id = $appt['appt_id'];
+			if(!isset($appointments_array[$apt_id])){
+				$appointments_array[$apt_id]['id'] = $appt['appt_id'];
+				$appointments_array[$apt_id]['appt_id'] = $appt['appt_code'];
+				$appointments_array[$apt_id]['user_name'] = $appt['user_name'];
+				$appointments_array[$apt_id]['email'] = $appt['email'];
+				$appointments_array[$apt_id]['event_type'] = $appt['event_type'];
+				$appointments_array[$apt_id]['date'] = $appt['appt_date'];
+				$appointments_array[$apt_id]['time_full'] = $appt['appt_time'];
+				$date1 = date_create($appt['appt_time']);
+				$appointments_array[$apt_id]['time'] = date_format($date1,"h:i A");
+				if($appt['appt_date'] != '') {
+					$formatted_date = date('M d, Y',strtotime($appt['appt_date']));
+				} else {
+					$formatted_date = '';
+				}
+				$res_card = R::getRow("select card_id, card_number from bea_user_cards where uid = ".$appt['uid']." and is_default = 1");
+				$appointments_array[$apt_id]['default_user_card_id'] = $res_card['card_id']; 
+				$appointments_array[$apt_id]['default_user_card_number'] = $res_card['card_number']; 
+				$appointments_array[$apt_id]['formatted_date'] = date('M d, Y',strtotime($formatted_date));
+				$appointments_array[$apt_id]['contact_number'] = $appt['primary_phone'];
+				$appointments_array[$apt_id]['total_people'] = $appt['people_count'];
+				$appointments_array[$apt_id]['total_hair'] = $appt['no_of_hair'];
+				$appointments_array[$apt_id]['total_makeup'] = $appt['no_of_makeup'];
+				$appointments_array[$apt_id]['city_name'] = $appt['city_name'];
+				$appointments_array[$apt_id]['state_name'] = $appt['state_name'];
+				$appointments_array[$apt_id]['address'] = $appt['address'];
+				$appointments_array[$apt_id]['pincode'] = $appt['pincode'];
+				$appointments_array[$apt_id]['appt_type'] = $appt['appt_type'];
+				$appointments_array[$apt_id]['venue_type'] = $appt['venue_type'];
+				$appointments_array[$apt_id]['landmark'] = $appt['landmark'];
+				$appointments_array[$apt_id]['trail_date'] = $appt['trail_date'];
+				$appointments_array[$apt_id]['comments'] = rawurldecode(rawurldecode($appt['comments_a']));
+				$appointments_array[$apt_id]['admin_notes'] = rawurldecode(rawurldecode($appt['admin_notes_a']));
+				$appointments_array[$apt_id]['appt_source'] = $appt['appt_source'];
+				$appointments_array[$apt_id]['service_duration'] = $appt['service_duration'];
+			    $appointments_array[$apt_id]['artist_arrival'] = $appt['artist_arrival'];
+			    $appointments_array[$apt_id]['artist_arrival_format'] = $appt['artist_arrival_format'];
+				$appointments_array[$apt_id]['unassigned_artist'] = false;
+				$appointments_array[$apt_id]['artists'] = array();
+			}
+
+			if($appt['profile_pic'] != "" )
+            {
+                $appt['profile_pic'] = $artist_pic.$appt['artist_id']."/".$appt['profile_pic'];
+            }
+			$artist_status = 'available';
+			/*if($appt['unavail_date_id'] != NULL || $appt['avail_date_id'] == NULL) {
+				$appointments_array[$apt_id]['unassigned_artist'] = true;
+				$artist_status = 'unavailable';
+			}*/
+
+			if($appt['artist_id'] != "" )
+			{
+				$service_types_qry = "SELECT bst.service_type_id,bst.service_type_code,bst.service_type_name FROM bea_artist_services bas LEFT JOIN bea_service_types bst ON bst.service_type_id=bas.service_type_id WHERE bas.artist_id=".$appt['artist_id'];
+		        $service_types = R::getAll($service_types_qry);
+		    }
+	        
+			$artist_data = array('id' => $appt['artist_id'],'name' => $appt['artist_name'],'profile_pic' => $appt['profile_pic'],'contact_number' => $appt['contact_number'],'status' => $artist_status, 'service_types' => $service_types);
+			array_push($appointments_array[$apt_id]['artists'],$artist_data);
+			
+			//calculating artist arrival time
+			/*$no_of_artists = count($appointments_array[$apt_id]['artists']);
+			$total_services = $appt['no_of_hair'] + $appt['no_of_makeup'];
+			$num = $total_services/$no_of_artists;
+			$duration = 45+(($num-1)*30);
+			$date2 = date_create($appt['appt_date']." ".$appt['appt_time']);
+			date_sub($date2,date_interval_create_from_date_string($duration." minutes"));
+			$appointments_array[$apt_id]['service_duration'] = $duration." min";
+			$appointments_array[$apt_id]['artist_arrival'] = date_format($date2,"M d, Y h:i A");
+			$appointments_array[$apt_id]['artist_arrival_format'] = date_format($date2,"Y-m-d h:i");*/
+			
+		
+			$appointments_array[$apt_id]['attendees'] = array();
+			# appointment related attendees
+				$attendee_qry = "SELECT attendee_id,attendee_code, attendee_name, role AS attendee_role, email_id AS attendee_email, service_type AS attendee_service_type FROM bea_appointment_attendees WHERE appointment_id = '".$appt['appt_code']."'";
+		        $attendee = R::getAll($attendee_qry);
+		        if(!empty($attendee)) {
+		        	$appointments_array[$apt_id]['attendees'] = $attendee;
+		        }
+				
+			$appointments_array[$apt_id]['trail_notes'] = array();
+			# appointment related trail notes
+				$notes = R::getAll("SELECT t.note_id, t.appt_id, t.artist_id, ifnull(t.title,'') as title, ifnull(t.description,'') as description, t.photo, date_format(t.created_date, '%b %d, %Y') as added_date, concat(a.first_name,' ',a.last_name) as artist_name FROM `bea_appointment_trail_notes` t, bea_artists a WHERE t.artist_id = a.artist_id and t.appt_id = ".$appt['appt_id']." and t.status = 1");
+				$i = 0;
+				foreach($notes as $note)
+				{ 
+				   $notes[$i]['description'] = rawurldecode(rawurldecode($note['description']));
+				   $i++;
+				}
+		        if(!empty($notes)) {
+		        	$appointments_array[$apt_id]['trail_notes'] = $notes;
+		        }
+		}
+
+		$appointments_list = array_values($appointments_array);
+		$response 		   = array('status' => 'success','appointments' => $appointments_list);
+		return array($status_code => $response);
+	}
+
+	/**
+	 * return user all appointments list
+	 *
+	 * @return
+	 *   array appointments list
+	**/
+	public function get_user_appointments_list($data_array=array()) {
+
+		$status_code = 200;
+		$errors      = array();
+
+		if(!isset($data_array['uid'])) {
+            array_push($errors,"uid required");
+        } else {
+                
+            $data_array['uid']   =     Validation::clean_string($data_array['uid']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'uid'),
+                                        'alphanumeric'      => array('min'=>'0','max'=>'100','field_name'=>'uid')
+                                     );
+            $field_errors    =  Validation::check_field($data_array['uid'],$validations);
+            if(count($field_errors) > 0){
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+        if(count($errors) > 0){
+            $errors_string = implode(',',$errors);
+            return array(   200 => array('status' => 'failed', 'errortext'=>$errors_string) );
+        }
+
+		$uid = Utilities::get_user_data($data_array['uid'],2);
+
+		if(!$uid) {
+        	return array($status_code => array('status' => 'failed','errortext'=>'There seems to be an issue with your account. Please try logging in again or contact BE for support.'));
+        }
+		
+		if(isset($data_array['appt_id']) && $data_array['appt_id'] != "")
+		{
+			$appt_qry = "SELECT appts.appt_id, CONCAT( bu.first_name, ' ' , bu.last_name ) AS user_name,bu.email,bu.primary_phone,baa.artist_id,appts.appt_code,appts.event_type,appts.appt_date,DATE_FORMAT(appts.appt_date,'%a, %b %d, %Y') AS formatted_date,DATE_FORMAT(CONCAT(appts.appt_date,' ',appts.appt_time), '%b %d, %Y, %l:%i %p') AS formatted_date_time,appts.appt_time,appts.appt_type,appts.no_of_hair,appts.no_of_makeup,appts.people_count,appts.address,appts.city_name,appts.contact_number,ifnull(date_format(appts.trail_date,''),'') as trail_date,ifnull(appts.comments,'') as comments,bsm.state_name,appts.pincode,appts.venue_type,appts.landmark,appts.created_by, ba.artist_id,CONCAT(ba.first_name,' ',ba.last_name) AS artist_name,ba.profile_pic,ba.contact_number FROM `bea_appointments` appts LEFT JOIN bea_states_master bsm ON bsm.state_id=appts.state_id LEFT JOIN bea_appointment_artists baa ON baa.appt_id=appts.appt_id LEFT JOIN bea_users bu ON bu.uid = appts.uid LEFT JOIN bea_artists ba ON ba.artist_id=baa.artist_id WHERE appts.appt_id = ".$data_array['appt_id']." and appts.`status` = '1' and appts.`uid` = ".$uid." ORDER BY appts.`appt_date` ASC";
+		}
+		else
+		{
+			$appt_qry = "SELECT appts.appt_id, CONCAT( bu.first_name, ' ' , bu.last_name ) AS user_name,bu.email,bu.primary_phone,baa.artist_id,appts.appt_code,appts.event_type,appts.appt_date,DATE_FORMAT(appts.appt_date,'%a, %b %d, %Y') AS formatted_date,DATE_FORMAT(CONCAT(appts.appt_date,' ',appts.appt_time), '%b %d, %Y, %l:%i %p') AS formatted_date_time,appts.appt_time,appts.appt_type,appts.no_of_hair,appts.no_of_makeup,appts.people_count,appts.address,appts.city_name,appts.contact_number,ifnull(date_format(appts.trail_date,''),'') as trail_date, ifnull(appts.comments,'') as comments, bsm.state_name,appts.pincode,appts.venue_type,appts.landmark,appts.created_by, ba.artist_id,CONCAT(ba.first_name,' ',ba.last_name) AS artist_name,ba.profile_pic,ba.contact_number FROM `bea_appointments` appts LEFT JOIN bea_states_master bsm ON bsm.state_id=appts.state_id LEFT JOIN bea_appointment_artists baa ON baa.appt_id=appts.appt_id LEFT JOIN bea_users bu ON bu.uid = appts.uid LEFT JOIN bea_artists ba ON ba.artist_id=baa.artist_id WHERE appts.appt_date >= CURDATE() and appts.`status` = '1' and appts.`uid` = ".$uid." ORDER BY appts.`appt_date` ASC";
+		}
+
+        $appts_list = R::getAll($appt_qry);
+
+        $artist_pic = 'http://dev.popcornapps.com/be/api/uploads/profile/';
+        $appointments_array = array();
+        $temp_array = array();
+        
+		foreach($appts_list as $appt) {
+			$apt_id = $appt['appt_id'];
+			
+			if(!isset($temp_array[$apt_id])) {
+				$temp_array[$apt_id]['appt_id'] = $appt['appt_id'];
+				$temp_array[$apt_id]['appt_code'] = $appt['appt_code'];
+				$temp_array[$apt_id]['user_name'] = $appt['user_name'];
+				$temp_array[$apt_id]['email'] = $appt['email'];
+				$temp_array[$apt_id]['event_type'] = $appt['event_type'];
+				$temp_array[$apt_id]['appt_date'] = $appt['appt_date'];
+				$temp_array[$apt_id]['24_appt_time'] = $appt['appt_time'];
+				$date1 = date_create($appt['appt_time']);
+				$temp_array[$apt_id]['appt_time'] = date_format($date1,"h:i A");
+				$temp_array[$apt_id]['formatted_date'] = $appt['formatted_date'];
+				$temp_array[$apt_id]['formatted_date_time'] = $appt['formatted_date_time'];
+				$temp_array[$apt_id]['contact_number'] = $appt['primary_phone'];
+				$temp_array[$apt_id]['total_people'] = $appt['people_count'];
+				$temp_array[$apt_id]['total_hair'] = $appt['no_of_hair'];
+				$temp_array[$apt_id]['total_makeup'] = $appt['no_of_makeup'];
+				$temp_array[$apt_id]['city_name'] = $appt['city_name'];
+				$temp_array[$apt_id]['state_name'] = $appt['state_name'];
+				$temp_array[$apt_id]['pincode'] = $appt['pincode'];
+				$temp_array[$apt_id]['address'] = $appt['address'];
+				$temp_array[$apt_id]['appt_type'] = $appt['appt_type'];
+				$temp_array[$apt_id]['venue_type'] = $appt['venue_type'];
+				$temp_array[$apt_id]['landmark'] = $appt['landmark'];
+				$temp_array[$apt_id]['trail_date'] = $appt['trail_date'];
+				$temp_array[$apt_id]['comments'] = rawurldecode(rawurldecode($appt['comments']));
+				$temp_array[$apt_id]['artists'] = array();
+				$temp_array[$apt_id]['attendees'] = array();
+				$temp_array[$apt_id]['trail_notes'] = array();
+
+			} 
+				
+			if($appt['profile_pic'] != "" )
+            {
+                $appt['profile_pic'] = $artist_pic.$appt['artist_id']."/".$appt['profile_pic'];
+            }
+			
+
+			if($appt['artist_id'] != "" ) {
+				$service_types_qry = "SELECT bst.service_type_id,bst.service_type_code,bst.service_type_name FROM bea_artist_services bas LEFT JOIN bea_service_types bst ON bst.service_type_id=bas.service_type_id WHERE bas.artist_id=".$appt['artist_id'];
+		        $service_types = R::getAll($service_types_qry);
+		    
+				$artist_data = array('id' => $appt['artist_id'],'name' => $appt['artist_name'],'profile_pic' => $appt['profile_pic'],'contact_number' => $appt['contact_number'],'service_types' => $service_types);
+				array_push($temp_array[$apt_id]['artists'],$artist_data);
+			}
+			//calculating artist arrival time
+			$no_of_artists = count($temp_array[$apt_id]['artists']);
+			$total_services = $appt['no_of_hair'] + $appt['no_of_makeup'];
+			if($no_of_artists != 0)
+			{
+				$num = $total_services/$no_of_artists;
+				$duration = 45+(($num-1)*30);
+				$date2 = date_create($appt['appt_date']." ".$appt['appt_time']);
+				date_sub($date2,date_interval_create_from_date_string($duration." minutes"));
+				$temp_array[$apt_id]['service_duration'] = $duration." min";
+				$temp_array[$apt_id]['artist_arrival'] = date_format($date2,"M d, Y h:i A");
+			}
+			else
+			{
+				$temp_array[$apt_id]['service_duration'] = "";
+				$temp_array[$apt_id]['artist_arrival'] = "";
+			}
+
+			if( empty($temp_array[$apt_id]['attendees']) && !empty($temp_array[$apt_id]['appt_code']) ) {
+				# appointment related attendees
+				$attendee_qry = "SELECT attendee_id,attendee_code, attendee_name, role AS attendee_role, email_id AS attendee_email, service_type AS attendee_service_type FROM bea_appointment_attendees WHERE appointment_id = '".$temp_array[$apt_id]['appt_code']."'";
+		        $attendee = R::getAll($attendee_qry);
+		        if(!empty($attendee)) {
+		        	$temp_array[$apt_id]['attendees'] = $attendee;
+		        }
+	    	}
+			
+	    	$temp_array[$apt_id]['trail_notes'] = array();
+			# appointment related trail notes
+			$notes = R::getAll("SELECT t.note_id, t.appt_id, t.artist_id, ifnull(t.title,'') as title, ifnull(t.description,'') as description, t.photo, date_format(t.created_date, '%b %d, %Y') as added_date, concat(a.first_name,' ',a.last_name) as artist_name FROM `bea_appointment_trail_notes` t, bea_artists a WHERE t.artist_id = a.artist_id and t.appt_id = ".$appt['appt_id']." and t.status = 1");
+			$i = 0;
+				foreach($notes as $note)
+				{ 
+				   $notes[$i]['description'] = rawurldecode(rawurldecode($note['description']));
+				   $i++;
+				}
+			if(!empty($notes)) {
+				$temp_array[$apt_id]['trail_notes'] = $notes;
+			}
+		}
+
+		foreach ($temp_array as $key => $value) {
+			array_push($appointments_array, $value);
+		}
+		return array( $status_code => array('status'=>'success' , 'total' => (string) count($temp_array), 'response' => $appointments_array) );
+	}
+
+	/**
+	 * return Artist all appointments list
+	 *
+	 * @return
+	 *   array appointments list
+	**/
+	public function get_artist_appointments_list($data_array=array()) {
+
+		$status_code = 200;
+		$errors      = array();
+
+		if(!isset($data_array['artist_id'])) {
+            array_push($errors,"Artist ID is required");
+        } else {
+            
+            $data_array['artist_id']   =     Validation::clean_string($data_array['artist_id']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Artist ID'),
+                                        'alphanumeric'        => array('min'=>'1','max'=>'11','field_name'=>'Artist ID')
+                                     );
+            $field_errors    =  Validation::check_field($data_array['artist_id'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+		if(count($errors) > 0){
+            $errors_string = implode(',',$errors);
+            return array( 200 => array('status' => 'failed', 'errortext'=>$errors_string) );
+        }
+		
+		//ba.appt_date >= NOW()
+		if(isset($data_array['portal']) && $data_array['portal'] == 1)
+		{
+		    $appt_qry = "SELECT ba.appt_id,ba.appt_code,bats.artist_id,bats.profile_pic AS artist_pic,CONCAT(bats.first_name,' ',bats.last_name) AS artist_name,bats.contact_number, ba.event_type,ba.appt_date,ba.appt_time,ba.appt_start_date,ba.appt_start_time,DATE_FORMAT(ba.appt_date,'%a, %b %d, %Y') AS formatted_date,ba.people_count,ba.no_of_hair,ba.no_of_makeup,ba.city_name,ba.contact_number,ifnull(date_format(ba.trail_date,'%b %d, %Y'),'') as trail_date, ifnull(ba.comments,'') as comments, ifnull(ba.admin_notes,'') as admin_notes, ba.appt_source,ba.venue_type,ba.service_duration,ba.artist_arrival,ba.artist_arrival_format,bsm.state_name,bsm.tax_amount,ba.pincode,ba.address,ba.appt_type,bu.uuid,bu.uid,CONCAT(bu.first_name,' ',bu.last_name) AS user_name,bu.email,bu.profile_pic,bu.primary_phone FROM bea_appointments ba LEFT JOIN bea_states_master bsm ON bsm.state_id=ba.state_id LEFT JOIN bea_appointment_artists baa ON baa.artist_id=".$data_array['artist_id']." LEFT JOIN bea_artists bats ON bats.artist_id=baa.artist_id LEFT JOIN bea_users bu ON bu.uid=ba.uid WHERE ba.appt_start_date >= CURDATE() and ba.appt_id=baa.appt_id and ba.status = 1 order by ba.appt_date asc";
+		}else{
+			$appt_qry = "SELECT ba.appt_id,ba.appt_code,bats.artist_id,bats.profile_pic AS artist_pic,CONCAT(bats.first_name,' ',bats.last_name) AS artist_name,bats.contact_number, ba.event_type,ba.appt_date,ba.appt_time,ba.appt_start_date,ba.appt_start_time,DATE_FORMAT(ba.appt_date,'%a, %b %d, %Y') AS formatted_date,ba.people_count,ba.no_of_hair,ba.no_of_makeup,ba.city_name,ba.contact_number,ifnull(date_format(ba.trail_date,'%b %d, %Y'),'') as trail_date, ifnull(ba.comments,'') as comments, ifnull(ba.admin_notes,'') as admin_notes, ba.appt_source,ba.venue_type,ba.service_duration,ba.artist_arrival,ba.artist_arrival_format,bsm.state_name,bsm.tax_amount,ba.pincode,ba.address,ba.appt_type,bu.uuid,bu.uid,CONCAT(bu.first_name,' ',bu.last_name) AS user_name,bu.email,bu.profile_pic,bu.primary_phone FROM bea_appointments ba LEFT JOIN bea_states_master bsm ON bsm.state_id=ba.state_id LEFT JOIN bea_appointment_artists baa ON baa.artist_id=".$data_array['artist_id']." LEFT JOIN bea_artists bats ON bats.artist_id=baa.artist_id LEFT JOIN bea_users bu ON bu.uid=ba.uid WHERE ba.appt_id=baa.appt_id and ba.status = 1 order by ba.appt_date desc";
+		}
+		
+        $appts_list = R::getAll($appt_qry);
+
+        $artist_pic = 'http://dev.popcornapps.com/be/api/uploads/profile/';
+
+        $appointments_array = array();
+        $temp_array = array();
+
+        foreach($appts_list as $appt) {
+			
+			$apt_id = $appt['appt_id'];
+			if(!isset($temp_array[$apt_id])) {
+
+				$temp_array[$apt_id]['appt_id'] = $appt['appt_id'];
+				$temp_array[$apt_id]['appt_code'] = $appt['appt_code'];
+				$temp_array[$apt_id]['user_name'] = $appt['user_name'];
+				$temp_array[$apt_id]['email'] = $appt['email'];
+				$temp_array[$apt_id]['uid'] = $appt['uid'];
+				$res_card = R::getRow("select card_id, card_number from bea_user_cards where uid = ".$appt['uid']." and is_default = 1");
+				$temp_array[$apt_id]['default_user_card_id'] = $res_card['card_id']; 
+				$temp_array[$apt_id]['default_user_card_number'] = $res_card['card_number']; 
+				$temp_array[$apt_id]['event_type'] = $appt['event_type'];
+				$temp_array[$apt_id]['appt_date'] = $appt['appt_start_date'];
+				$temp_array[$apt_id]['customer_appt_date'] = $appt['appt_date'];
+				$temp_array[$apt_id]['customer_appt_time'] = $appt['appt_time'];
+				$temp_array[$apt_id]['24_appt_time'] = $appt['appt_start_time'];
+				$date1 = date_create($appt['appt_time']);
+				$temp_array[$apt_id]['appt_time'] = date_format($date1,"h:i A");
+				$temp_array[$apt_id]['formatted_date'] = $appt['formatted_date'];
+				$temp_array[$apt_id]['contact_number'] = $appt['primary_phone'];
+				$temp_array[$apt_id]['total_people'] = $appt['people_count'];
+				$temp_array[$apt_id]['total_hair'] = $appt['no_of_hair'];
+				$temp_array[$apt_id]['total_makeup'] = $appt['no_of_makeup'];
+				$temp_array[$apt_id]['address'] = $appt['address'];
+				$temp_array[$apt_id]['city_name'] = $appt['city_name'];
+				$temp_array[$apt_id]['state_name'] = $appt['state_name'];
+				$temp_array[$apt_id]['tax_amount'] = $appt['tax_amount'];
+				$temp_array[$apt_id]['pincode'] = $appt['pincode'];
+				$temp_array[$apt_id]['venue_type'] = $appt['venue_type'];
+				$temp_array[$apt_id]['appt_type'] = $appt['appt_type'];
+				$temp_array[$apt_id]['trail_date'] = $appt['trail_date'];
+				$temp_array[$apt_id]['comments'] = rawurldecode(rawurldecode($appt['comments']));
+				$temp_array[$apt_id]['admin_notes'] = rawurldecode(rawurldecode($appt['admin_notes']));
+				$temp_array[$apt_id]['appt_source'] = $appt['appt_source'];
+				$temp_array[$apt_id]['service_duration'] = $appt['service_duration'];
+				$temp_array[$apt_id]['artist_arrival'] = $appt['artist_arrival'];
+				if($appt['profile_pic'] != "" ) {
+	                $temp_array[$apt_id]['profile_pic'] = $artist_pic.$appt['uuid']."/".$appt['profile_pic'];
+	            } else {
+	            	$temp_array[$apt_id]['profile_pic'] = "";
+	            }
+	            $temp_array[$apt_id]['artists'] = array();
+	            $temp_array[$apt_id]['attendees'] = array();
+	            $temp_array[$apt_id]['trail_notes'] = array();
+	        }
+
+	        if( empty($temp_array[$apt_id]['artists']) && $temp_array[$apt_id]['appt_id'] != "" )
+            {
+            	$artist_qry = "SELECT ba.artist_id, CONCAT(ba.first_name,' ',ba.last_name) AS artist_name,IF(ba.`profile_pic` is NULL or ba.`profile_pic`= '', '', CONCAT('".$artist_pic."',ba.artist_id,'/',ba.`profile_pic`) ) AS profile_pic, ba.contact_number FROM bea_appointment_artists baa LEFT JOIN bea_artists ba ON ba.artist_id = baa.artist_id WHERE baa.appt_id = '".$temp_array[$apt_id]['appt_id']."'";
+		        $artists = R::getAll($artist_qry);
+
+		        foreach ($artists as $key => $artist) {
+				     if($artist['artist_id'] != "" && $artist['artist_id'] != null){
+
+		        	$service_types_qry = "SELECT DISTINCT bst.service_type_id,bst.service_type_code,bst.service_type_name FROM bea_artist_services bas LEFT JOIN bea_service_types bst ON bst.service_type_id=bas.service_type_id WHERE bas.artist_id=".$artist['artist_id'];
+					//echo $service_types_qry;
+		        	$service_types = R::getAll($service_types_qry);
+
+		        	$artists[$key]['service_types'] = $service_types;
+					}
+					else
+					{
+					  $artists[$key]['service_types'] = "";
+					}
+		        }
+		        $temp_array[$apt_id]['artists'] = array_values($artists);
+		    }
+			
+            if( empty($temp_array[$apt_id]['attendees']) && !empty($temp_array[$apt_id]['appt_code']) ) {
+				# appointment related attendees
+				$attendee_qry = "SELECT attendee_id,attendee_code, attendee_name, role AS attendee_role, email_id AS attendee_email, service_type AS attendee_service_type FROM bea_appointment_attendees WHERE appointment_id = '".$temp_array[$apt_id]['appt_code']."'";
+		        $attendee = R::getAll($attendee_qry);
+		        if(!empty($attendee)) {
+		        	$temp_array[$apt_id]['attendees'] = $attendee;
+		        }
+	    	}
+
+	    	$temp_array[$apt_id]['trail_notes'] = array();
+			# appointment related trail notes
+				$notes = R::getAll("SELECT t.note_id, t.appt_id, t.artist_id, ifnull(t.title,'') as title, ifnull(t.description,'') as description, t.photo, date_format(t.created_date, '%b %d, %Y') as added_date, concat(a.first_name,' ',a.last_name) as artist_name FROM `bea_appointment_trail_notes` t, bea_artists a WHERE t.artist_id = a.artist_id and t.appt_id = ".$appt['appt_id']." and t.status = 1");
+				$i = 0;
+				foreach($notes as $note)
+				{ 
+				   $notes[$i]['description'] = rawurldecode(rawurldecode($note['description']));
+				   $i++;
+				}
+		        if(!empty($notes)) {
+		        	$temp_array[$apt_id]['trail_notes'] = $notes;
+		        }
+
+            //array_push($appointments_array, $temp_array);
+			
+		}
+		$appointments_array = array_values($temp_array); 
+		return array( $status_code => array('status'=>'success' , 'total' => (string) count($appointments_array), 'response' => $appointments_array) );
+	}
+
+	/**
+	 * return all details of an appointment
+	 *
+	 * @return
+	 *   array with appointment details
+	**/
+	public function get_all_appointment_details($data=array()) {
+
+		$status_code = 200;
+		$errors      = array();
+
+		if(isset($data['appt_id'])) {
+            
+            $data['appt_id']        =   Validation::clean_string($data['appt_id']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Appointment ID'),
+                                        'alphanumeric'      => array('min'=>'0','max'=>'12','field_name'=>'Appointment ID')
+                                     );
+            $field_errors    =  Validation::check_field($data['appt_id'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+        if(count($errors) > 0) {
+            $errors_string = implode(',',$errors);
+            return array(   200 => array('status' => 'failed', 'errortext'=>$errors_string) );
+        }
+
+        if(!empty($data['appt_id'])) {
+	        $appt_id = Utilities::get_appointment_data($data['appt_id'],0);
+			$appt_qry = "SELECT appts.appt_id,appts.uid, bu.uuid, CONCAT( bu.first_name, ' ' , bu.last_name ) AS user_name, bu.profile_pic AS user_pic,bu.primary_phone,baa.artist_id,appts.appt_code,appts.event_type,appts.appt_date,DATE_FORMAT(appts.appt_date,'%a, %b %d, %Y') AS formatted_date, DATE_FORMAT(CONCAT(appts.appt_date,' ',appts.appt_time), '%b %d, %Y  %h:%i %p') AS formatted_date_time, appts.appt_time,appts.appt_type,appts.no_of_hair,appts.no_of_makeup,appts.people_count,appts.address,appts.city_name,bsm.state_name,appts.pincode,appts.created_by,appts.venue_type,appts.landmark,appts.contact_number as apt_contact,ifnull(appts.comments,'') as comments,ifnull(appts.admin_notes,'') as admin_notes,appts.appt_source,appts.service_duration,appts.artist_arrival, ifnull(date_format(appts.trail_date,'%b %d, %Y'), '') as trail_date,ba.artist_id,CONCAT(ba.first_name,' ',ba.last_name) AS artist_name,ba.profile_pic,ba.contact_number FROM `bea_appointments` appts LEFT JOIN bea_states_master bsm ON bsm.state_id=appts.state_id LEFT JOIN bea_appointment_artists baa ON baa.appt_id=appts.appt_id LEFT JOIN bea_users bu ON bu.uid = appts.uid LEFT JOIN bea_artists ba ON ba.artist_id=baa.artist_id WHERE appts.`status` = '1' and appts.`appt_id` = '".$appt_id."' ORDER BY appts.`appt_date` DESC";
+	    } else {
+			$appt_qry = "SELECT appts.appt_id,appts.uid, bu.uuid, CONCAT( bu.first_name, ' ' , bu.last_name ) AS user_name, bu.profile_pic AS user_pic,bu.primary_phone,baa.artist_id,appts.appt_code,appts.event_type,appts.appt_date,DATE_FORMAT(appts.appt_date,'%a, %b %d, %Y') AS formatted_date, DATE_FORMAT(CONCAT(appts.appt_date,' ',appts.appt_time), '%b %d, %Y  %h:%i %p') AS formatted_date_time,appts.appt_time,appts.appt_type,appts.no_of_hair,appts.no_of_makeup,appts.people_count,appts.address,appts.city_name,bsm.state_name,appts.pincode,appts.created_by,appts.venue_type,appts.landmark,appts.contact_number as apt_contact, ifnull(appts.comments,'') as comments, ifnull(appts.admin_notes,'') as admin_notes, appts.appt_source, appts.service_duration,appts.artist_arrival,ifnull(date_format(appts.trail_date,'%b %d, %Y'), '') as trail_date,ba.artist_id,CONCAT(ba.first_name,' ',ba.last_name) AS artist_name,ba.profile_pic, ba.contact_number FROM `bea_appointments` appts LEFT JOIN bea_states_master bsm ON bsm.state_id=appts.state_id LEFT JOIN bea_appointment_artists baa ON baa.appt_id=appts.appt_id LEFT JOIN bea_users bu ON bu.uid = appts.uid LEFT JOIN bea_artists ba ON ba.artist_id=baa.artist_id WHERE appts.`status` = '1' and appts.`appt_id` = baa.`appt_id` ORDER BY appts.`appt_date` DESC";
+		}
+		
+        $appts_list = R::getAll($appt_qry);
+
+        $artist_pic = 'http://dev.popcornapps.com/be/api/uploads/profile/';
+        $appointments_array = array();
+        $temp_array = array();
+
+		foreach($appts_list as $appt) {
+			$apt_id = $appt['appt_id'];
+			
+			if(!isset($temp_array[$apt_id])) {
+				$temp_array[$apt_id]['appt_id'] = $appt['appt_id'];
+				$temp_array[$apt_id]['appt_code'] = $appt['appt_code'];
+				$temp_array[$apt_id]['event_type'] = $appt['event_type'];
+				$temp_array[$apt_id]['appt_date'] = $appt['appt_date'];
+				$temp_array[$apt_id]['24_appt_time'] = $appt['appt_time'];
+				$date1 = date_create($appt['appt_time']);
+				$temp_array[$apt_id]['appt_time'] = date_format($date1,"h:i A");
+				$temp_array[$apt_id]['formatted_date'] = $appt['formatted_date'];
+				$temp_array[$apt_id]['formatted_date_time'] = $appt['formatted_date_time'];
+				$temp_array[$apt_id]['total_people'] = $appt['people_count'];
+				$temp_array[$apt_id]['total_hair'] = $appt['no_of_hair'];
+				$temp_array[$apt_id]['total_makeup'] = $appt['no_of_makeup'];
+				$temp_array[$apt_id]['address'] = $appt['address'];
+				$temp_array[$apt_id]['city_name'] = $appt['city_name'];
+				$temp_array[$apt_id]['state_name'] = $appt['state_name'];
+				$temp_array[$apt_id]['pincode'] = $appt['pincode'];
+				$temp_array[$apt_id]['appt_type'] = $appt['appt_type'];
+				$temp_array[$apt_id]['venue_type'] = $appt['venue_type'];
+				$temp_array[$apt_id]['landmark'] = $appt['landmark'];
+				$temp_array[$apt_id]['trail_date'] = $appt['trail_date'];
+				$temp_array[$apt_id]['contact_number'] = $appt['primary_phone'];
+				$temp_array[$apt_id]['comments'] = rawurldecode(rawurldecode($appt['comments']));
+				$temp_array[$apt_id]['admin_notes'] = rawurldecode(rawurldecode($appt['admin_notes']));
+				$temp_array[$apt_id]['appt_source'] = $appt['appt_source'];
+				$temp_array[$apt_id]['service_duration'] = $appt['service_duration'];
+				$temp_array[$apt_id]['artist_arrival'] = $appt['artist_arrival'];
+				$res_card = R::getRow("select card_id, card_number from bea_user_cards where uid = ".$appt['uid']." and is_default = 1");
+				$temp_array[$apt_id]['default_user_card_id'] = $res_card['card_id']; 
+				$temp_array[$apt_id]['default_user_card_number'] = $res_card['card_number'];
+				$temp_array[$apt_id]['artists'] = array();
+				$temp_array[$apt_id]['user_info'] = array();
+				$temp_array[$apt_id]['attendees'] = array();
+				$temp_array[$apt_id]['trail_notes'] = array();
+			} 
+
+			if( empty($temp_array[$apt_id]['user_info']) ) {
+				if($appt['user_pic'] != "" )
+	            {
+	                $appt['user_pic'] = $artist_pic.$appt['uuid']."/".$appt['user_pic'];
+	            }
+				$temp_array[$apt_id]['user_info']['uuid'] = $appt['uuid'];
+				$temp_array[$apt_id]['user_info']['user_name'] = $appt['user_name'];
+				$temp_array[$apt_id]['user_info']['user_pic'] = $appt['user_pic'];
+			}
+			//echo $appt['appt_code'];
+			if( empty($temp_array[$apt_id]['attendees']) && !empty($appt['appt_code']) ) {
+				# appointment related attendees
+				$attendee_qry = "SELECT attendee_id,attendee_code, attendee_name, role AS attendee_role, email_id AS attendee_email, service_type as attende_service_type, s.service_type_name AS service_type_name FROM bea_appointment_attendees a LEFT JOIN bea_service_types s ON a.service_type = s.service_type_id WHERE a.appointment_id = '".$appt['appt_code']."'";
+				
+		        $attendee = R::getAll($attendee_qry);
+				$k=0;
+				foreach($attendee as $a)
+				{
+				  $attendee[$k]['service_type_name'] = str_replace('HA','Hair',$a['attende_service_type']);
+				  $attendee[$k]['service_type_name'] = str_replace('MU','Makeup',$attendee[$k]['service_type_name']);
+				  $attendee[$k]['service_type_name'] = str_replace(',',', ',$attendee[$k]['service_type_name']);
+				  $k++;
+				}
+		        if(!empty($attendee)) {
+		        	$temp_array[$apt_id]['attendees'] = $attendee;
+		        }
+	    	}
+
+	    	$temp_array[$apt_id]['trail_notes'] = array();
+			# appointment related trail notes
+				$notes = R::getAll("SELECT t.note_id, t.appt_id, t.artist_id, ifnull(t.title,'') as title, ifnull(t.description,'') as description, t.photo, date_format(t.created_date, '%b %d, %Y') as added_date, concat(a.first_name,' ',a.last_name) as artist_name FROM `bea_appointment_trail_notes` t, bea_artists a WHERE t.artist_id = a.artist_id and t.appt_id = ".$appt['appt_id']." and t.status = 1");
+				$i = 0;
+				foreach($notes as $note)
+				{ 
+				   $notes[$i]['description'] = rawurldecode(rawurldecode($note['description']));
+				   $i++;
+				}
+		        if(!empty($notes)) {
+		        	$temp_array[$apt_id]['trail_notes'] = $notes;
+		        }
+
+			if($appt['profile_pic'] != "" )
+            {
+                $appt['profile_pic'] = $artist_pic.$appt['artist_id']."/".$appt['profile_pic'];
+            }
+			
+			if($appt['artist_id'] != "" )
+            {
+				# appointment related artist service types
+				$service_types_qry = "SELECT DISTINCT bst.service_type_id,bst.service_type_code,bst.service_type_name FROM bea_artist_services bas LEFT JOIN bea_service_types bst ON bst.service_type_id=bas.service_type_id WHERE bas.artist_id=".$appt['artist_id'];
+		        $service_types = R::getAll($service_types_qry);
+		    }
+	        
+	        # appointmet artists info
+			$artist_data = array('artist_id' => $appt['artist_id'],'artist_name' => $appt['artist_name'],'profile_pic' => $appt['profile_pic'],'contact_number' => $appt['contact_number'],'service_types' => $service_types);
+			array_push($temp_array[$apt_id]['artists'],$artist_data);
+		}
+		
+		$appointments_array = array_values($temp_array); 
+		return array( $status_code => array('status'=>'success' , 'total' => (string) count($temp_array), 'response' => $appointments_array) );
+	}
+
+	/**
+	 * return all appointments count on a single day b/w the 2 dates
+	 *
+	 * @return
+	 *   array with appointment count with date
+	**/
+	public function appt_count($data=array()) {
+
+		$status_code = 200;
+		$errors      = array();
+		
+		if(!isset($data['from_date'])) {
+			array_push($errors,"From Date required");
+		} else {
+		    
+            $data['from_date']        =   Validation::clean_string($data['from_date']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'From Date'),
+                                        'date'      => array('field_name'=>'From Date')
+                                     );
+            $field_errors    =  Validation::check_field($data['from_date'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+        if(!isset($data['to_date'])) {
+			array_push($errors,"To Date required");
+		} else {
+		    
+            $data['to_date']        =   Validation::clean_string($data['to_date']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'To Date'),
+                                        'date'      => array('field_name'=>'To Date')
+                                     );
+            $field_errors    =  Validation::check_field($data['to_date'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+        if(count($errors) > 0) {
+        	$errors_str = implode(',',$errors);
+            return array( 200 => array('status' => 'failed', 'errortext'=>$errors_str) );
+        }
+        
+        $from_date = $data['from_date'];
+		$to_date = $data['to_date'];
+
+		# appointment related artist service types
+		//$appt_qry = "SELECT count(*) AS total_appts,ba.appt_date, DATE_FORMAT(ba.appt_date, '%d %b, %Y %W') AS formatted_date FROM `bea_appointments` ba LEFT JOIN bea_appointment_artists baa ON baa.appt_id = ba.appt_id WHERE ba.appt_date >= '$from_date' AND ba.appt_date <= '$to_date' GROUP BY ba.appt_date";
+		$appt_qry = "SELECT count(appt_id) AS total_appts,appt_date, DATE_FORMAT(appt_date, '%d %b, %Y %W') AS formatted_date FROM `bea_appointments` WHERE appt_date >= '$from_date' AND appt_date <= '$to_date' and status = 1 GROUP BY appt_date";
+        $appt_count = R::getAll($appt_qry);
+
+        return array( $status_code => array('status'=>'success' , 'total' => (string) count($appt_count), 'response' => $appt_count) );
+
+	}
+
+	/**
+	 * return all details of an appointment
+	 *
+	 * @return
+	 *   array with appointment details
+	**/
+	public function create_attendee($data_array=array()) {
+
+
+		$status_code = 200; //return array($status_code=>$data_array['attendees']);
+		$errors      = array();
+		if(!isset($data_array) && $data_array['attendees'] !='') {
+			return array($status_code => array('status' => 'failed', 'errortext' => 'Invalid Attendees') );
+		}
+
+		$values = '';
+		foreach ($data_array['attendees'] as $key => $data) {
+
+			if( !isset($data['appt_id']) || $data['appt_id'] == '') {
+	        //if (! array_key_exists('appt_id', $data)) {
+				array_push($errors,'Appointment ID is required');
+			} else {
+	            
+	            $data['appt_id']        =   Validation::clean_string($data['appt_id']);
+	            $validations    =   array(  
+	                                        'required'  => array('field_name'=>'Appointment ID'),
+	                                        'alphanumeric'      => array('min'=>'10','max'=>'12','field_name'=>'Appointment ID')
+	                                     );
+	            $field_errors    =  Validation::check_field($data['appt_id'],$validations);
+	            if(count($field_errors) > 0) {
+	                array_push($errors,implode(',',$field_errors));
+	            }
+	        }
+
+	        if(!isset($data['attendee_name'])) {
+				array_push($errors,'Attendee Name is required');
+			} else {
+	            
+	            $data['attendee_name']        =   Validation::clean_string($data['attendee_name']);
+	            $validations    =   array(  
+	                                        'required'  => array('field_name'=>'Attendee Name'),
+	                                        'name'      => array('min'=>'2','max'=>'50','field_name'=>'Attendee Name')
+	                                     );
+	            $field_errors    =  Validation::check_field($data['attendee_name'],$validations);
+	            if(count($field_errors) > 0) {
+	                array_push($errors,implode(',',$field_errors));
+	            }
+	        }
+	        
+	        if(isset($data['role']) && $data['role'] != '') {
+				
+	            $data['role']   =   Validation::clean_string($data['role']);
+	            $validations    =   array(  
+	                                        'required'  => array('field_name'=>'Role'),
+	                                        'name'      => array('min'=>'1','max'=>'50','field_name'=>'Role')
+	                                     );
+	            $field_errors    =  Validation::check_field($data['role'],$validations);
+	            if(count($field_errors) > 0) {
+	                array_push($errors,implode(',',$field_errors));
+	            }
+	        }
+	        
+	        if(isset($data['email']) && $data['email'] != '') {
+				
+	            $data['email']        =   Validation::clean_string($data['email']);
+	            $validations    =   array(  
+	                                        'required'  => array('field_name'=>'Email'),
+	                                        'email'      => array('min'=>'1','max'=>'100','field_name'=>'Email')
+	                                     );
+	            $field_errors    =  Validation::check_field($data['email'],$validations);
+	            if(count($field_errors) > 0) {
+	                array_push($errors,implode(',',$field_errors));
+	            }
+	        }
+
+	        if(isset($data['service_type']) && $data['service_type'] != '') {
+				
+				$data['service_type']        =   Validation::clean_string($data['service_type']);
+	            $validations    =   array(  
+	                                        'required'  => array('field_name'=>'Service Type'),
+	                                        'string'      => array('min'=>'1','max'=>'12','field_name'=>'Service Type')
+	                                     );
+	            $field_errors    =  Validation::check_field($data['service_type'],$validations);
+	            if(count($field_errors) > 0) {
+	                array_push($errors,implode(',',$field_errors));
+	            }
+	        }
+
+	        $attendee_code = Utilities::get_unique_code();
+	        if($values == '') {
+	        	$values = "VALUES('".$data['appt_id']."','".$attendee_code."','".addslashes($data['attendee_name'])."','".addslashes($data['role'])."','".$data['email']."','".$data['service_type']."')";
+	        } else {
+	        	$values .= ", ('".$data['appt_id']."','".$attendee_code."','".addslashes($data['attendee_name'])."','".addslashes($data['role'])."','".$data['email']."','".$data['service_type']."')";
+	        }
+	    }
+
+        if(count($errors) > 0) {
+        	$errors_str = implode(',',$errors);
+            return array( 200 => array('status' => 'failed', 'errortext'=>$errors_str) );
+        }
+
+    	$attendee_code = Utilities::get_unique_code();
+		$query 		= 	"INSERT INTO `bea_appointment_attendees` (appointment_id,attendee_code,attendee_name,role,email_id,service_type) $values";
+		$status		= 	R::exec($query);
+
+		if($status) {
+			$reponse = array( 'status' => 'success' );
+		} else {
+			$reponse = array( 'status' => 'failed', 'errortext'=>'Data error.' );
+		}
+
+        return array($status_code=>$reponse);
+	}
+
+	/**
+	 * return all details of an appointment
+	 *
+	 * @return
+	 *   array with appointment details
+	**/
+	public function update_attendee($data=array()) {
+
+		$status_code = 200; 
+		$errors      = array();
+		if(!isset($data) && $data !='') {
+			return array($status_code => array('status' => 'failed', 'errortext' => 'Invalid Attendees') );
+		}
+
+		if(!isset($data['attendee_id']) || $data['attendee_id'] == '') {
+			array_push($errors,'Attendee ID is required');
+		} else {
+		    
+            $data['attendee_id']        =   Validation::clean_string($data['attendee_id']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Attendee ID'),
+                                        'alphanumeric'      => array('min'=>'12','max'=>'13','field_name'=>'Attendee ID')
+                                     );
+            $field_errors    =  Validation::check_field($data['attendee_id'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        } 
+
+		if( !isset($data['appt_id']) || $data['appt_id'] == '') {
+        	array_push($errors,'Appointment ID is required');
+		} else {
+            
+            $data['appt_id']        =   Validation::clean_string($data['appt_id']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Appointment ID'),
+                                        'alphanumeric'      => array('min'=>'10','max'=>'12','field_name'=>'Appointment ID')
+                                     );
+            $field_errors    =  Validation::check_field($data['appt_id'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+        if(!isset($data['attendee_name']) || $data['attendee_name'] == '') {
+			array_push($errors,'Attendee Name is required');
+		} else {
+            
+            $data['attendee_name']        =   Validation::clean_string($data['attendee_name']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Attendee Name'),
+                                        'name'      => array('min'=>'2','max'=>'50','field_name'=>'Attendee Name')
+                                     );
+            $field_errors    =  Validation::check_field($data['attendee_name'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+        
+        if(!isset($data['role']) || $data['role'] == '') {
+			array_push($errors,'Role is required');
+		} else {
+            
+            $data['role']        =   Validation::clean_string($data['role']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Role'),
+                                        'name'      => array('min'=>'1','max'=>'50','field_name'=>'Role')
+                                     );
+            $field_errors    =  Validation::check_field($data['role'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+        
+        if(!isset($data['email']) || $data['email'] == '') {
+			array_push($errors,'Email is required');
+		} else {
+            
+            $data['email']        =   Validation::clean_string($data['email']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Email'),
+                                        'email'      => array('min'=>'1','max'=>'100','field_name'=>'Email')
+                                     );
+            $field_errors    =  Validation::check_field($data['email'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+        /*if(!isset($data['service_type']) || $data['service_type'] == '') {
+			array_push($errors,'service Type is required');
+		} else {
+            
+            $data['service_type']        =   Validation::clean_string($data['service_type']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Service Type'),
+                                        'alphanumeric'      => array('min'=>'1','max'=>'12','field_name'=>'Service Type')
+                                     );
+            $field_errors    =  Validation::check_field($data['service_type'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }*/
+
+        if(count($errors) > 0) {
+        	$errors_str = implode(',',$errors);
+            return array( 200 => array('status' => 'failed', 'errortext'=>$errors_str) );
+        }
+
+    	$query 		= 	"UPDATE `bea_appointment_attendees` SET attendee_name='".$data['attendee_name']."',role='".$data['role']."',email_id='".$data['email']."' WHERE attendee_code='".$data['attendee_id']."'";
+		$status		= 	R::exec($query);
+
+		if($status) {
+			$reponse = array( 'status' => 'success' );
+		} else {
+			$reponse = array( 'status' => 'failed', 'errortext'=>'Data error.' );
+		}
+
+        return array($status_code=>$reponse);
+	}
+
+	/**
+	 * return status of an attendee
+	 *
+	 * @return
+	 *   Delete status of an attendee
+	**/
+	public function delete_attendee($data=array()) {
+
+		$status_code = 200;
+		$errors      = array();
+
+		if(!isset($data['attendee_id'])) {
+			array_push($error, 'Attendee ID is required');
+		} else {
+		    
+            $data['attendee_id']        =   Validation::clean_string($data['attendee_id']);
+            $validations    =   array(  
+                                        'required'  => array('field_name'=>'Attendee ID'),
+                                        'alphanumeric'      => array('min'=>'12','max'=>'13','field_name'=>'Attendee ID')
+                                     );
+            $field_errors    =  Validation::check_field($data['attendee_id'],$validations);
+            if(count($field_errors) > 0) {
+                array_push($errors,implode(',',$field_errors));
+            }
+        }
+
+        if(count($errors) > 0) {
+        	$errors_str = implode(',',$errors);
+            return array( 200 => array('status' => 'failed', 'errortext'=>$errors_str) );
+        }
+
+        $query 		= 	"DELETE FROM `bea_appointment_attendees` WHERE attendee_code='".$data['attendee_id']."'";
+    	$status		= 	R::exec($query);
+    	
+    	if($status) {
+    		return array( $status_code => array('status'=>'success') );
+    	} else {
+    		return array( $status_code => array('status'=>'failed') );
+    	}
+
+	}
+	
+	public function update_appointment($data=array()) {
+	   
+	   $status_code = 200;
+	   
+	   if(!isset($data['appt_id']))
+	   {
+	     return array($status_code => array('status' => 'failed', 'errortext' => 'Appointment id is missing') );
+	   }
+	   
+	   if(!isset($data['special_request']))
+	   {
+	     return array($status_code => array('status' => 'failed', 'errortext' => 'Special request is missing') );
+	   }
+	   
+	   if(!isset($data['admin_notes']))
+	   {
+	     return array($status_code => array('status' => 'failed', 'errortext' => 'Admin notes is missing') );
+	   }
+	   
+	   $check_appt = R::getRow("select * from bea_appointments where status = 1 and appt_id = ".$data['appt_id']);
+	   
+	   if(count($check_appt) > 0)
+	   {
+	      $update_rec = R::exec("update bea_appointments set comments = '".addslashes($data['special_request'])."', admin_notes = '".addslashes($data['admin_notes'])."' where appt_id = ".$data['appt_id']);
+		  if($update_rec)
+		  {
+	        return array( $status_code => array('status'=>'success'));
+		  }
+		  else
+		  {
+		     return array($status_code => array('status'=>'failed','errortext' => ''));
+		  }
+	   }
+	   else
+	   {
+	     return array($status_code => array('status' => 'failed', 'errortext' => 'Appointment does not exist'));
+	   }	   
+	}
+	
+	public function delete_appointment($data = array())
+	{
+	  $status_code = 200;
+	   
+	   if(!isset($data['appt_id']))
+	   {
+	     return array($status_code => array('status' => 'failed', 'errortext' => 'Appointment id is missing') );
+	   }
+	   
+	   $check_appt = R::getRow("select * from bea_appointments where status = 1 and appt_id = ".$data['appt_id']);
+	   
+	   if(count($check_appt) > 0)
+	   {
+	      $check_cashout = R::getRow("select count(*) as cashout_count from bea_appointment_cashout where appt_id = ".$data['appt_id']);
+		  
+		  if($check_cashout['cashout_count'] > 0)
+		  {
+		      return array($status_code => array('status' => 'failed', 'errortext' => 'Appointment cannot be deleted, as it is cashed out') );
+		  }
+		  else
+		  {
+		      $delete_trailnotes = R::exec("delete from bea_appointment_trail_notes where appt_id = ".$data['appt_id']);
+			  $delete_artists = R::exec("delete from bea_appointment_artists where appt_id = ".$data['appt_id']);
+			  $delete_attendes = R::exec("delete from bea_appointment_attendees where appointment_id = (select appt_code from bea_appointments where appt_id = ".$data['appt_id'].")");
+			  $update_rec = R::exec("update bea_appointments set status = '0' where appt_id = ".$data['appt_id']);
+			  if($update_rec)
+			  {
+				return array( $status_code => array('status'=>'success') );
+			  }
+			  else
+			  {
+				 return array( $status_code => array('status'=>'failed','errortext' => '') );
+			  }		  
+		  }	  
+	   }
+	   else
+	   {
+	     return array($status_code => array('status' => 'failed', 'errortext' => 'Appointment does not exist'));
+	   }	
+	}
+}
