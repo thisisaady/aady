@@ -6,10 +6,7 @@ class Appointments {
 	public function create_appointment($data_array=array(), $action='create') {
 
 		# first check appointment code is existing or not.
-		$appt_details =	$db_fv_pair	= $errors = $appts_array = array();
-		$new_appointment			=	TRUE;
-		$status_code				=	200;
-		$appt_id					=	0;
+		
 
 		if(isset($data_array['aid']) && $data_array['aid'] != '') {
 			$appt_code				=		Utilities::clean_string($data_array['aid']);
@@ -28,6 +25,12 @@ class Appointments {
 			return array($status_code => array('status' => 'failed','errorcode'=>'800','errortext'=>'User id requried.'));
 		}
 		$uid 						=		Utilities::get_user_data($uuid,2);
+		
+		
+		$appt_details =	$db_fv_pair	= $errors = $appts_array = array();
+		$new_appointment			=	TRUE;
+		$status_code				=	200;
+		$appt_id					=	0;
 
 		if($uid<=0) {
 			return array($status_code => array('status' => 'failed','errorcode'=>'700','errortext'=>'There seems to be an issue with your account. Please try logging in again or contact BE for support.'));
@@ -39,11 +42,7 @@ class Appointments {
 				$event_type			=		'';
 			}
 
-			if(isset($data_array['date'])) {
-				$appt_date				=		Utilities::clean_string($data_array['date']);
-			} else {
-				$appt_date				=		'';
-			}
+			
 
 			if(isset($data_array['time'])) {
 				$appt_time				=		Utilities::clean_string($data_array['time']);
@@ -68,7 +67,11 @@ class Appointments {
 			} else {
 				$no_of_hair				=		'';
 			}
-
+			if(isset($data_array['date'])) {
+				$appt_date				=		Utilities::clean_string($data_array['date']);
+			} else {
+				$appt_date				=		'';
+			}
 			if(isset($data_array['appt_type'])) {
 				$appt_type				=		Utilities::clean_string($data_array['appt_type']);
 			} else {
